@@ -94,7 +94,13 @@ def process_current_stage(input_text=None):
         elif 'patient_specific_plan' in result:
             add_assistant_message(f"I've considered patient-specific factors:\n\n{result['patient_specific_plan']}\n\nNow I'll prepare a final treatment plan.")
         elif 'final_treatment_plan' in result:
-            add_assistant_message(f"Here's the final treatment plan:\n\n{result['final_treatment_plan']}\n\nYou can download a complete report of the diagnosis and treatment plan.")
+            add_assistant_message(f"Here's the final treatment plan:\n\n{result['final_treatment_plan']}\n\nNow I'll create visualizations to help understand the diagnosis.")
+        elif 'graph_html_path' in result:
+            add_assistant_message(f"I've created interactive visualizations for the diagnosis. Now I'll generate a comprehensive PDF report with all the analysis and results.")
+        elif 'pdf_path' in result:
+            add_assistant_message(f"I've generated a comprehensive PDF report with all the diagnosis results. You can download it using the button below.")
+            # Store the PDF path in session state
+            st.session_state.pdf_report_path = result.get('pdf_path')
         
         # Do not automatically update the current stage based on result
         # This will now be controlled by the approval button only
@@ -285,7 +291,10 @@ def main():
         st.markdown("5. **Counterfactual** - Perform counterfactual analysis")
         st.markdown("6. **Diagnosis** - Generate diagnosis")
         st.markdown("7. **Treatment Planning** - Identify treatment options")
-        st.markdown("8. **Final Plan** - Create final treatment plan")
+        st.markdown("8. **Patient Specific** - Personalize treatment")
+        st.markdown("9. **Final Plan** - Create final treatment plan")
+        st.markdown("10. **Visualization** - Create interactive visualizations")
+        st.markdown("11. **PDF Generation** - Generate comprehensive PDF report")
         
         st.markdown("---")
         
@@ -585,6 +594,75 @@ def main():
             else:
                 st.info("Generating final treatment plan...")
         
+        elif st.session_state.current_stage == 'visualization':
+            st.subheader("Interactive Visualizations")
+            
+            # Get visualization result
+            visualization_result = st.session_state.workflow.get_stage_result('visualization')
+            
+            if 'graph_html_path' in visualization_result:
+                st.success("Interactive causal graph created successfully!")
+                
+                # Display embedded graph HTML if available
+                if 'embedded_graph_html' in visualization_result:
+                    st.markdown("### Interactive Causal Graph")
+                    st.markdown(visualization_result['embedded_graph_html'], unsafe_allow_html=True)
+                
+                st.info("Approve this stage to proceed to PDF generation.")
+            else:
+                st.info("Creating interactive visualizations...")
+                
+        elif st.session_state.current_stage == 'pdf_generation':
+            st.subheader("PDF Report Generation")
+            
+            # Get PDF generation result
+            pdf_result = st.session_state.workflow.get_stage_result('pdf_generation')
+            
+            if 'pdf_path' in pdf_result:
+                st.success("PDF report generated successfully!")
+                
+                # Get the PDF path from the result
+                pdf_path = pdf_result['pdf_path']
+                
+                # Store the PDF path in session state
+                st.session_state.pdf_report_path = pdf_path
+                
+                # Create and display download link
+                report_generator = st.session_state.report_generator
+                download_link = report_generator.get_pdf_download_link(pdf_path)
+                st.markdown("### Download PDF Report")
+                st.markdown(download_link, unsafe_allow_html=True)
+                
+                st.info("Approve this stage to complete the diagnosis process.")
+            else:
+                st.info("Generating comprehensive PDF report...")
+                
+                # Add a button to manually trigger PDF generation
+                if st.button("Generate PDF Report Now", key="generate_pdf_button"):
+                    # Generate the PDF report
+                    pdf_path = generate_report()
+                    if pdf_path:
+                        # Store the PDF path in the workflow results
+                        workflow = st.session_state.workflow
+                        if 'pdf_generation' not in workflow.results:
+                            workflow.results['pdf_generation'] = {}
+                        workflow.results['pdf_generation']['pdf_path'] = pdf_path
+                        
+                        # Store the PDF path in session state
+                        st.session_state.pdf_report_path = pdf_path
+                        
+                        # Create download link
+                        report_generator = st.session_state.report_generator
+                        download_link = report_generator.get_pdf_download_link(pdf_path)
+                        
+                        # Display success message and download link
+                        st.success("PDF report generated successfully!")
+                        st.markdown("### Download PDF Report")
+                        st.markdown(download_link, unsafe_allow_html=True)
+                        
+                        # Force a rerun to update the UI
+                        st.rerun()
+                
         elif st.session_state.current_stage == 'complete':
             st.subheader("Diagnosis and Treatment Complete")
             st.success("The diagnosis and treatment planning process is complete. You can download the report or start a new case.")
@@ -599,11 +677,14 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Generate report button
-            if st.session_state.pdf_report_path:
+            # Get PDF path from workflow or session state
+            pdf_path = st.session_state.workflow.get_pdf_report_path() or st.session_state.pdf_report_path
+            
+            if pdf_path:
                 # Create download link
                 report_generator = st.session_state.report_generator
-                download_link = report_generator.get_pdf_download_link(st.session_state.pdf_report_path)
+                download_link = report_generator.get_pdf_download_link(pdf_path)
+                st.markdown("### Download Complete Report")
                 st.markdown(download_link, unsafe_allow_html=True)
             else:
                 if st.button("Generate PDF Report"):

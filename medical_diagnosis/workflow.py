@@ -37,6 +37,13 @@ class DiagnosisWorkflow:
             'final_plan',
             'visualization'
         ]
+        # Initialize visualizer
+        from .visualizer import Visualizer
+        self.visualizer = Visualizer()
+        # Track the causal graph path
+        self.causal_graph_path = None
+        # Store all causal links to create graph only at the end
+        self.all_causal_links = []
         logging.info("DiagnosisWorkflow initialized")
     
     def get_next_stage(self, current_stage):
@@ -136,10 +143,17 @@ class DiagnosisWorkflow:
             else:
                 response = self.llm_service.generate(prompt, extracted_factors=extracted_factors)
             
+            # Store causal links for later graph creation
+            self.all_causal_links.append({
+                'stage': 'causal_analysis',
+                'content': response
+            })
+            
             self.results[stage] = {
                 'causal_links': response,
                 'next_stage': 'validation'
             }
+            
             return self.results[stage]
         
         elif stage == 'validation':
@@ -152,8 +166,18 @@ class DiagnosisWorkflow:
             combined_context = f"Extracted Factors:\n{extracted_factors}\n\nCausal Links:\n{causal_links}"
             
             # If additional input is provided, add it to the context
+            additional_causal_links = ""
             if input_text:
                 combined_context += f"\n\nAdditional Information:\n{input_text}"
+                # Extract potential causal links from additional information
+                additional_causal_links = input_text
+                
+                # Store additional causal links for later graph creation
+                if additional_causal_links:
+                    self.all_causal_links.append({
+                        'stage': 'validation',
+                        'content': additional_causal_links
+                    })
             
             # Use chat history if available
             if chat_history and len(chat_history) > 0:
@@ -178,6 +202,7 @@ class DiagnosisWorkflow:
                 'ready': ready_to_proceed,
                 'next_stage': 'counterfactual' if ready_to_proceed else 'validation'
             }
+            
             return self.results[stage]
         
         elif stage == 'counterfactual':
@@ -206,10 +231,29 @@ class DiagnosisWorkflow:
             else:
                 response = self.llm_service.generate(prompt, combined_context=combined_context)
             
+            # Extract potential new causal links from counterfactual analysis
+            counterfactual_causal_links = ""
+            
+            # Look for sections like "Alternative Causal Pathways" or "Additional Causal Relationships"
+            import re
+            sections = re.split(r'#+\s+', response)
+            for section in sections:
+                if any(keyword in section.lower() for keyword in 
+                       ['causal', 'pathway', 'relationship', 'mechanism', 'link']):
+                    counterfactual_causal_links += section + "\n\n"
+            
+            # Store counterfactual causal links for later graph creation
+            if counterfactual_causal_links:
+                self.all_causal_links.append({
+                    'stage': 'counterfactual',
+                    'content': counterfactual_causal_links
+                })
+            
             self.results[stage] = {
                 'counterfactual_analysis': response,
                 'next_stage': 'diagnosis'
             }
+            
             return self.results[stage]
         
         elif stage == 'diagnosis':
@@ -336,23 +380,31 @@ class DiagnosisWorkflow:
         
         elif stage == 'visualization':
             # Generate interactive causal graph visualization
-            from .visualizer import Visualizer
-            
-            visualizer = Visualizer()
-            causal_links = self.results.get('causal_analysis', {}).get('causal_links', '')
-            
-            # Create an interactive causal graph
             try:
+                # Combine all causal links from all stages
+                combined_causal_links = ""
+                for link_data in self.all_causal_links:
+                    combined_causal_links += f"--- {link_data['stage'].upper()} STAGE ---\n\n"
+                    combined_causal_links += link_data['content'] + "\n\n"
+                
+                # If no causal links have been collected, use the ones from causal_analysis
+                if not combined_causal_links:
+                    combined_causal_links = self.results.get('causal_analysis', {}).get('causal_links', '')
+                
                 # Generate the interactive graph
-                graph_html_path = visualizer.create_interactive_causal_graph(causal_links)
+                graph_html_path = self.visualizer.create_interactive_causal_graph(combined_causal_links)
                 
                 # Get the embedded HTML for the graph
-                embedded_graph_html = visualizer.get_embedded_graph_html(graph_html_path)
+                embedded_graph_html = self.visualizer.get_embedded_graph_html(graph_html_path)
+                
+                # Store the graph path for future reference
+                self.causal_graph_path = graph_html_path
                 
                 self.results[stage] = {
                     'graph_html_path': graph_html_path,
                     'embedded_graph_html': embedded_graph_html,
-                    'next_stage': 'complete'
+                    'next_stage': 'complete',
+                    'note': 'Created comprehensive causal graph from all stages'
                 }
             except Exception as e:
                 logging.error(f"Error creating interactive causal graph: {str(e)}")

@@ -9,7 +9,12 @@ import re
 import tempfile
 import os
 import base64
+import logging
 from io import BytesIO
+from pyvis.network import Network
+import tempfile
+import os
+from App.models.azure import AzureModel
 
 class Visualizer:
     """
@@ -19,7 +24,12 @@ class Visualizer:
     
     def __init__(self):
         """Initialize the visualizer."""
-        pass
+        try:
+            self.azure_model = AzureModel()
+            self.use_llm = True
+        except Exception as e:
+            logging.warning(f"Failed to initialize Azure LLM: {str(e)}. Falling back to rule-based methods.")
+            self.use_llm = False
     
     def create_interactive_causal_graph(self, causal_links_text):
         """
@@ -31,10 +41,6 @@ class Visualizer:
         Returns:
             str: Path to the HTML file containing the interactive graph
         """
-        from pyvis.network import Network
-        import tempfile
-        import os
-        
         # Parse causal links from text (reuse existing method)
         links = self._parse_causal_links(causal_links_text)
         
@@ -145,6 +151,55 @@ class Visualizer:
         
         return fig
     
+    def _parse_causal_links_with_llm(self, causal_links_text):
+        """
+        Parse causal links from text using Azure LLM.
+        
+        Args:
+            causal_links_text (str): Text containing causal links
+            
+        Returns:
+            list: List of dictionaries with cause and effect
+        """
+        try:
+            # Create a prompt for the LLM
+            prompt = [
+                ("system", """You are a medical expert specialized in identifying causal relationships in medical text.
+                Your task is to extract cause-effect relationships from the provided text.
+                For each causal relationship you identify, output it in the following JSON format:
+                {"cause": "cause text", "effect": "effect text"}
+                
+                If there are multiple relationships, output one JSON object per line.
+                Only extract explicit causal relationships where one medical concept directly causes or leads to another.
+                Do not infer relationships that are not clearly stated in the text.
+                Do not include any explanations or additional text in your response, only the JSON objects."""),
+                ("user", f"Extract all causal relationships from the following medical text:\n\n{causal_links_text}")
+            ]
+            
+            # Get response from LLM
+            response = self.azure_model.invoke(prompt)
+            
+            # Parse the response
+            links = []
+            for line in response.content.strip().split('\n'):
+                line = line.strip()
+                if line and (line.startswith('{') or line.startswith('{')):
+                    try:
+                        import json
+                        link_data = json.loads(line)
+                        if 'cause' in link_data and 'effect' in link_data:
+                            links.append({
+                                'cause': link_data['cause'].strip(),
+                                'effect': link_data['effect'].strip()
+                            })
+                    except json.JSONDecodeError:
+                        continue
+            
+            return links
+        except Exception as e:
+            logging.warning(f"Error parsing causal links with LLM: {str(e)}")
+            return []
+    
     def _parse_causal_links(self, causal_links_text):
         """
         Parse causal links from text.
@@ -155,6 +210,13 @@ class Visualizer:
         Returns:
             list: List of dictionaries with cause and effect
         """
+        # Try using LLM first if available
+        if hasattr(self, 'use_llm') and self.use_llm:
+            llm_links = self._parse_causal_links_with_llm(causal_links_text)
+            if llm_links:
+                return llm_links
+        
+        # Fallback to regex-based parsing
         links = []
         
         # Look for patterns like "X → Y" or "X -> Y"
@@ -172,6 +234,48 @@ class Visualizer:
         
         return links
     
+    def _determine_node_type_with_llm(self, node_text):
+        """
+        Determine the type of node based on text using Azure LLM.
+        
+        Args:
+            node_text (str): The node text
+            
+        Returns:
+            str: The node type
+        """
+        try:
+            # Create a prompt for the LLM
+            prompt = [
+                ("system", """You are a medical expert specialized in categorizing medical concepts.
+                Your task is to categorize the given medical term into one of the following categories:
+                - symptom: Signs or symptoms experienced by patients (e.g., pain, fever, nausea)
+                - condition: Diseases, disorders, or medical conditions (e.g., diabetes, cancer, heart failure)
+                - diagnostic: Tests, scans, or diagnostic procedures (e.g., MRI, blood test, biopsy)
+                - treatment: Medications, therapies, or interventions (e.g., surgery, antibiotics, physical therapy)
+                - other: Any medical concept that doesn't fit the above categories
+                
+                Respond with ONLY the category name in lowercase, without any additional text or explanation."""),
+                ("user", f"Categorize the following medical term: {node_text}")
+            ]
+            
+            # Get response from LLM
+            response = self.azure_model.invoke(prompt)
+            
+            # Parse the response
+            node_type = response.content.strip().lower()
+            
+            # Validate the response
+            valid_types = ['symptom', 'condition', 'diagnostic', 'treatment', 'other']
+            if node_type in valid_types:
+                return node_type
+            else:
+                # If the response doesn't match any valid type, use the fallback method
+                return None
+        except Exception as e:
+            logging.warning(f"Error determining node type with LLM: {str(e)}")
+            return None
+    
     def _determine_node_type(self, node_text):
         """
         Determine the type of node based on text.
@@ -182,6 +286,13 @@ class Visualizer:
         Returns:
             str: The node type
         """
+        # Try using LLM first if available
+        # if hasattr(self, 'use_llm') and self.use_llm:
+        #     llm_type = self._determine_node_type_with_llm(node_text)
+        #     if llm_type:
+        #         return llm_type
+        
+        # Fallback to keyword-based classification
         node_lower = node_text.lower()
         
         # Simple heuristic - would need to be enhanced for real-world use
@@ -404,6 +515,119 @@ class Visualizer:
         buf.seek(0)
         img_str = base64.b64encode(buf.read()).decode('utf-8')
         return img_str
+    
+    def update_causal_graph(self, graph_html_path, new_causal_links_text):
+        """
+        Update an existing causal graph with new causal links.
+        
+        Args:
+            graph_html_path (str): Path to the existing graph HTML file
+            new_causal_links_text (str): Text containing new causal links
+            
+        Returns:
+            str: Path to the updated HTML file
+        """
+        # Parse new causal links
+        new_links = self._parse_causal_links(new_causal_links_text)
+        
+        # Create a new PyVis network
+        net = Network(height="600px", width="100%", directed=True)
+        
+        # Try to load existing nodes and edges from the HTML file
+        existing_nodes = set()
+        existing_edges = set()
+        
+        try:
+            # Load the existing graph data
+            import re
+            with open(graph_html_path, 'r') as f:
+                content = f.read()
+            
+            # Extract nodes data
+            nodes_match = re.search(r'var nodes = new vis\.DataSet\(\[(.*?)\]\);', content, re.DOTALL)
+            if nodes_match:
+                nodes_data = nodes_match.group(1)
+                # Parse node IDs and labels
+                node_matches = re.finditer(r'\{.*?"id":\s*"(.*?)".*?"label":\s*"(.*?)".*?\}', nodes_data)
+                for match in node_matches:
+                    node_id = match.group(1)
+                    node_label = match.group(2)
+                    node_type = self._determine_node_type(node_label)
+                    net.add_node(node_id, label=node_label, title=node_label, 
+                                color=self._get_color_for_type(node_type))
+                    existing_nodes.add(node_id)
+            
+            # Extract edges data
+            edges_match = re.search(r'var edges = new vis\.DataSet\(\[(.*?)\]\);', content, re.DOTALL)
+            if edges_match:
+                edges_data = edges_match.group(1)
+                # Parse edge from and to
+                edge_matches = re.finditer(r'\{.*?"from":\s*"(.*?)".*?"to":\s*"(.*?)".*?\}', edges_data)
+                for match in edge_matches:
+                    from_node = match.group(1)
+                    to_node = match.group(2)
+                    net.add_edge(from_node, to_node, title=f"{from_node} → {to_node}")
+                    existing_edges.add((from_node, to_node))
+        except Exception as e:
+            logging.warning(f"Error loading existing graph data: {str(e)}. Creating new graph.")
+            existing_nodes = set()
+            existing_edges = set()
+        
+        # Add new nodes and edges
+        for link in new_links:
+            cause = link['cause']
+            effect = link['effect']
+            
+            # Add nodes if they don't exist
+            if cause not in existing_nodes:
+                cause_type = self._determine_node_type(cause)
+                net.add_node(cause, label=cause, title=cause, color=self._get_color_for_type(cause_type))
+                existing_nodes.add(cause)
+                
+            if effect not in existing_nodes:
+                effect_type = self._determine_node_type(effect)
+                net.add_node(effect, label=effect, title=effect, color=self._get_color_for_type(effect_type))
+                existing_nodes.add(effect)
+            
+            # Add edge if it doesn't exist
+            if (cause, effect) not in existing_edges:
+                net.add_edge(cause, effect, title=f"{cause} → {effect}")
+                existing_edges.add((cause, effect))
+        
+        # Set physics layout options for better readability
+        net.set_options("""
+        {
+          "physics": {
+            "hierarchicalRepulsion": {
+              "centralGravity": 0.0,
+              "springLength": 100,
+              "springConstant": 0.01,
+              "nodeDistance": 120
+            },
+            "solver": "hierarchicalRepulsion",
+            "stabilization": {
+              "iterations": 100
+            }
+          },
+          "layout": {
+            "hierarchical": {
+              "enabled": true,
+              "direction": "LR",
+              "sortMethod": "directed"
+            }
+          },
+          "interaction": {
+            "hover": true,
+            "navigationButtons": true,
+            "keyboard": true
+          }
+        }
+        """)
+        
+        # Save the updated network to the same file
+        net.save_graph(graph_html_path)
+        
+        return graph_html_path
     
     def get_embedded_graph_html(self, graph_html_path):
         """

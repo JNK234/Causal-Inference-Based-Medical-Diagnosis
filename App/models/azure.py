@@ -20,7 +20,7 @@ class AzureModel:
                 openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                 openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
                 temperature=0.5,
-                max_tokens=4096
+                max_tokens=9000
             )
             
         except Exception as e:
