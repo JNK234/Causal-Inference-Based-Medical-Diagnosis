@@ -21,6 +21,87 @@ class Visualizer:
         """Initialize the visualizer."""
         pass
     
+    def create_interactive_causal_graph(self, causal_links_text):
+        """
+        Create an interactive causal graph visualization using PyVis.
+        
+        Args:
+            causal_links_text (str): Text containing causal links
+            
+        Returns:
+            str: Path to the HTML file containing the interactive graph
+        """
+        from pyvis.network import Network
+        import tempfile
+        import os
+        
+        # Parse causal links from text (reuse existing method)
+        links = self._parse_causal_links(causal_links_text)
+        
+        # Create a PyVis network
+        net = Network(height="600px", width="100%", directed=True)
+        
+        # Track nodes to avoid duplicates
+        added_nodes = set()
+        
+        # Add nodes and edges
+        for link in links:
+            cause = link['cause']
+            effect = link['effect']
+            
+            # Add nodes if they don't exist
+            if cause not in added_nodes:
+                cause_type = self._determine_node_type(cause)
+                net.add_node(cause, label=cause, title=cause, color=self._get_color_for_type(cause_type))
+                added_nodes.add(cause)
+                
+            if effect not in added_nodes:
+                effect_type = self._determine_node_type(effect)
+                net.add_node(effect, label=effect, title=effect, color=self._get_color_for_type(effect_type))
+                added_nodes.add(effect)
+            
+            # Add edge
+            net.add_edge(cause, effect, title=f"{cause} → {effect}")
+        
+        # Set physics layout options for better readability
+        net.set_options("""
+        {
+          "physics": {
+            "hierarchicalRepulsion": {
+              "centralGravity": 0.0,
+              "springLength": 100,
+              "springConstant": 0.01,
+              "nodeDistance": 120
+            },
+            "solver": "hierarchicalRepulsion",
+            "stabilization": {
+              "iterations": 100
+            }
+          },
+          "layout": {
+            "hierarchical": {
+              "enabled": true,
+              "direction": "LR",
+              "sortMethod": "directed"
+            }
+          },
+          "interaction": {
+            "hover": true,
+            "navigationButtons": true,
+            "keyboard": true
+          }
+        }
+        """)
+        
+        # Create temp file for the HTML output
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as temp_file:
+            html_path = temp_file.name
+        
+        # Save the network
+        net.save_graph(html_path)
+        
+        return html_path
+    
     def create_causal_graph(self, causal_links_text):
         """
         Create a causal graph visualization from causal links text.
@@ -323,3 +404,44 @@ class Visualizer:
         buf.seek(0)
         img_str = base64.b64encode(buf.read()).decode('utf-8')
         return img_str
+    
+    def get_embedded_graph_html(self, graph_html_path):
+        """
+        Get HTML for embedding the interactive graph in the report.
+        
+        Args:
+            graph_html_path (str): Path to the generated graph HTML file
+            
+        Returns:
+            str: HTML for embedding the graph
+        """
+        try:
+            with open(graph_html_path, 'r') as f:
+                content = f.read()
+                
+            # Extract just the content we need (PyVis generates a full HTML page)
+            # We want to extract just the visualization part
+            body_content = content.split('<body>')[1].split('</body>')[0]
+            
+            # Get necessary scripts
+            scripts = []
+            for script in content.split('<script'):
+                if 'vis-network' in script or 'pyvis' in script:
+                    script_part = '<script' + script.split('</script>')[0] + '</script>'
+                    scripts.append(script_part)
+            
+            scripts_str = ''.join(scripts)
+            
+            # Combine into a div
+            embed_html = f"""
+            <div class="interactive-graph-container">
+                <div id="causal-graph">
+                    {body_content}
+                </div>
+                {scripts_str}
+            </div>
+            """
+            
+            return embed_html
+        except Exception as e:
+            return f"<p>Error loading interactive graph: {str(e)}</p>"

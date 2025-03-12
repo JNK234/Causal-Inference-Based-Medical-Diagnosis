@@ -33,7 +33,9 @@ class DiagnosisWorkflow:
             'counterfactual',
             'diagnosis',
             'treatment_planning',
-            'final_plan'
+            'patient_specific',
+            'final_plan',
+            'visualization'
         ]
         logging.info("DiagnosisWorkflow initialized")
     
@@ -328,8 +330,37 @@ class DiagnosisWorkflow:
             
             self.results[stage] = {
                 'final_treatment_plan': response,
-                'next_stage': 'complete'
+                'next_stage': 'visualization'
             }
+            return self.results[stage]
+        
+        elif stage == 'visualization':
+            # Generate interactive causal graph visualization
+            from .visualizer import Visualizer
+            
+            visualizer = Visualizer()
+            causal_links = self.results.get('causal_analysis', {}).get('causal_links', '')
+            
+            # Create an interactive causal graph
+            try:
+                # Generate the interactive graph
+                graph_html_path = visualizer.create_interactive_causal_graph(causal_links)
+                
+                # Get the embedded HTML for the graph
+                embedded_graph_html = visualizer.get_embedded_graph_html(graph_html_path)
+                
+                self.results[stage] = {
+                    'graph_html_path': graph_html_path,
+                    'embedded_graph_html': embedded_graph_html,
+                    'next_stage': 'complete'
+                }
+            except Exception as e:
+                logging.error(f"Error creating interactive causal graph: {str(e)}")
+                self.results[stage] = {
+                    'error': f"Error creating visualization: {str(e)}",
+                    'next_stage': 'complete'
+                }
+            
             return self.results[stage]
         
         else:

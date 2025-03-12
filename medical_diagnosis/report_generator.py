@@ -17,7 +17,7 @@ class ReportGenerator:
     
     def __init__(self):
         """Initialize the report generator."""
-        pass
+        self.summary_sections = ['causal_analysis', 'diagnosis', 'treatment_planning', 'patient_specific', 'final_plan']
     
     def generate_pdf_report(self, diagnosis_results):
         """
@@ -137,7 +137,45 @@ class ReportGenerator:
                     color: #FFC107;
                     font-weight: bold;
                 }
+                .summary-view {
+                    background-color: #f9f9f9;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin-bottom: 10px;
+                }
+                .full-view {
+                    display: none;
+                    background-color: #f5f5f5;
+                    padding: 15px;
+                    border-radius: 5px;
+                    border-left: 3px solid #3498DB;
+                    margin-top: 10px;
+                }
+                .expand-btn {
+                    background-color: #3498DB;
+                    color: white;
+                    border: none;
+                    padding: 5px 10px;
+                    border-radius: 3px;
+                    cursor: pointer;
+                    margin-top: 10px;
+                    font-size: 12px;
+                }
+                .expand-btn:hover {
+                    background-color: #2980B9;
+                }
             </style>
+            <script type="text/javascript">
+                function toggleView(id) {
+                    var element = document.getElementById(id);
+                    var isHidden = element.style.display === 'none';
+                    element.style.display = isHidden ? 'block' : 'none';
+                    
+                    // Update button text
+                    var btn = event.target;
+                    btn.innerText = isHidden ? 'Hide Full Analysis' : 'View Full Analysis';
+                }
+            </script>
         </head>
         <body>
             <h1>Medical Diagnosis and Treatment Plan</h1>
@@ -155,27 +193,57 @@ class ReportGenerator:
             
             <div class="section">
                 <h2>Causal Analysis</h2>
-                {{ causal_links }}
+                <div class="summary-view">
+                    {{ causal_links_summary }}
+                    <button class="expand-btn" onclick="toggleView('causal-full')">View Full Analysis</button>
+                </div>
+                <div class="full-view" id="causal-full">
+                    {{ causal_links_full }}
+                </div>
             </div>
             
             <div class="section">
                 <h2>Diagnosis</h2>
-                <div class="highlight">{{ diagnosis }}</div>
+                <div class="summary-view highlight">
+                    {{ diagnosis_summary }}
+                    <button class="expand-btn" onclick="toggleView('diagnosis-full')">View Full Analysis</button>
+                </div>
+                <div class="full-view" id="diagnosis-full">
+                    {{ diagnosis_full }}
+                </div>
             </div>
             
             <div class="section">
                 <h2>Treatment Plan</h2>
-                {{ treatment_plan }}
+                <div class="summary-view">
+                    {{ treatment_plan_summary }}
+                    <button class="expand-btn" onclick="toggleView('treatment-full')">View Full Analysis</button>
+                </div>
+                <div class="full-view" id="treatment-full">
+                    {{ treatment_plan_full }}
+                </div>
             </div>
             
             <div class="section">
                 <h2>Patient-Specific Considerations</h2>
-                {{ patient_specific_plan }}
+                <div class="summary-view">
+                    {{ patient_specific_plan_summary }}
+                    <button class="expand-btn" onclick="toggleView('patient-specific-full')">View Full Analysis</button>
+                </div>
+                <div class="full-view" id="patient-specific-full">
+                    {{ patient_specific_plan_full }}
+                </div>
             </div>
             
             <div class="section">
                 <h2>Final Treatment Recommendation</h2>
-                <div class="highlight">{{ final_treatment_plan }}</div>
+                <div class="summary-view highlight">
+                    {{ final_treatment_plan_summary }}
+                    <button class="expand-btn" onclick="toggleView('final-treatment-full')">View Full Analysis</button>
+                </div>
+                <div class="full-view" id="final-treatment-full">
+                    {{ final_treatment_plan_full }}
+                </div>
             </div>
             
             <div class="footer">
@@ -188,22 +256,85 @@ class ReportGenerator:
         # Create a Jinja2 template
         template = Template(template_str)
         
-        # Extract data from diagnosis results
+        # Extract and summarize data from diagnosis results
+        # First, prepare basic data
         data = {
             'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'case_text': diagnosis_results.get('initial', {}).get('case_text', 'No case text provided'),
             'extracted_factors': self._format_html_content(diagnosis_results.get('extraction', {}).get('extracted_factors', 'No extracted factors available')),
-            'causal_links': self._format_html_content(diagnosis_results.get('causal_analysis', {}).get('causal_links', 'No causal links available')),
-            'diagnosis': self._format_html_content(diagnosis_results.get('diagnosis', {}).get('diagnosis', 'No diagnosis available')),
-            'treatment_plan': self._format_html_content(diagnosis_results.get('treatment_planning', {}).get('treatment_plan', 'No treatment plan available')),
-            'patient_specific_plan': self._format_html_content(diagnosis_results.get('patient_specific', {}).get('patient_specific_plan', 'No patient-specific plan available')),
-            'final_treatment_plan': self._format_html_content(diagnosis_results.get('final_plan', {}).get('final_treatment_plan', 'No final treatment plan available'))
         }
+        
+        # Process sections that need summarization
+        causal_links_data = self._summarize_content(
+            diagnosis_results.get('causal_analysis', {}).get('causal_links', 'No causal links available')
+        )
+        data['causal_links_summary'] = self._format_html_content(causal_links_data['summary'])
+        data['causal_links_full'] = self._format_html_content(causal_links_data['full_content'])
+        
+        diagnosis_data = self._summarize_content(
+            diagnosis_results.get('diagnosis', {}).get('diagnosis', 'No diagnosis available')
+        )
+        data['diagnosis_summary'] = self._format_html_content(diagnosis_data['summary'])
+        data['diagnosis_full'] = self._format_html_content(diagnosis_data['full_content'])
+        
+        treatment_plan_data = self._summarize_content(
+            diagnosis_results.get('treatment_planning', {}).get('treatment_plan', 'No treatment plan available')
+        )
+        data['treatment_plan_summary'] = self._format_html_content(treatment_plan_data['summary'])
+        data['treatment_plan_full'] = self._format_html_content(treatment_plan_data['full_content'])
+        
+        patient_specific_plan_data = self._summarize_content(
+            diagnosis_results.get('patient_specific', {}).get('patient_specific_plan', 'No patient-specific plan available')
+        )
+        data['patient_specific_plan_summary'] = self._format_html_content(patient_specific_plan_data['summary'])
+        data['patient_specific_plan_full'] = self._format_html_content(patient_specific_plan_data['full_content'])
+        
+        final_treatment_plan_data = self._summarize_content(
+            diagnosis_results.get('final_plan', {}).get('final_treatment_plan', 'No final treatment plan available')
+        )
+        data['final_treatment_plan_summary'] = self._format_html_content(final_treatment_plan_data['summary'])
+        data['final_treatment_plan_full'] = self._format_html_content(final_treatment_plan_data['full_content'])
         
         # Render the template with the data
         html_content = template.render(**data)
         
         return html_content
+    
+    def _summarize_content(self, content, max_length=500):
+        """
+        Summarize content if it exceeds the maximum length.
+        
+        Args:
+            content (str): Content to potentially summarize
+            max_length (int): Maximum character length before summarization
+            
+        Returns:
+            dict: Contains 'summary' and 'full_content'
+        """
+        # If content is shorter than max_length, no need to summarize
+        if len(content) <= max_length:
+            return {'summary': content, 'full_content': content}
+        
+        # Use the existing LLM service to generate a summary
+        from medical_diagnosis.llm_service import LLMService
+        llm = LLMService()
+        
+        # Create prompt for summarization
+        summarization_prompt = """
+        Please summarize the following medical analysis in a concise but 
+        comprehensive way. Focus on key findings, important causal relationships, 
+        and critical conclusions. Limit to 3-5 key bullet points:
+        
+        {content}
+        """
+        
+        # Get summary from LLM
+        summary = llm.generate(summarization_prompt, content=content)
+        
+        return {
+            'summary': summary,
+            'full_content': content
+        }
     
     def _format_html_content(self, content):
         """

@@ -343,18 +343,38 @@ def main():
         )
         
         # Stage controls
-        if st.session_state.current_stage != 'initial' and st.session_state.current_stage != 'complete':
+        if st.session_state.current_stage != 'initial':
             st.markdown("---")
             st.subheader("Stage Controls")
             
-            # Approval button
-            st.markdown('<div class="approve-button">', unsafe_allow_html=True)
-            st.button(
-                "Approve & Continue to Next Stage",
-                key="approve_stage",
-                on_click=handle_stage_approval
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
+            if st.session_state.current_stage != 'complete':
+                # Approval button
+                st.markdown('<div class="approve-button">', unsafe_allow_html=True)
+                st.button(
+                    "Approve & Continue to Next Stage",
+                    key="approve_stage",
+                    on_click=handle_stage_approval
+                )
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                # Download button in the Stage Controls section when in complete stage
+                st.markdown('<div class="download-button">', unsafe_allow_html=True)
+                if st.session_state.pdf_report_path:
+                    # Create download link if report already generated
+                    report_generator = st.session_state.report_generator
+                    download_link = report_generator.get_pdf_download_link(st.session_state.pdf_report_path)
+                    st.markdown(download_link, unsafe_allow_html=True)
+                else:
+                    # Generate report button
+                    if st.button("Download PDF Report", key="download_report_controls"):
+                        pdf_path = generate_report()
+                        if pdf_path:
+                            # Create download link
+                            report_generator = st.session_state.report_generator
+                            download_link = report_generator.get_pdf_download_link(pdf_path)
+                            st.markdown(download_link, unsafe_allow_html=True)
+                            st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
     
     # Right column - Analysis and results
     with col2:
