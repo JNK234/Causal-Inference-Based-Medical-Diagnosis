@@ -46,6 +46,10 @@ def initialize_session_state():
         st.session_state.visualizer = Visualizer()
     if 'report_generator' not in st.session_state:
         st.session_state.report_generator = ReportGenerator()
+    if 'sample_case_clicked' not in st.session_state:
+        st.session_state.sample_case_clicked = False
+    if 'default_case_text' not in st.session_state:
+        st.session_state.default_case_text = ""
 
 # Process the current stage
 def process_current_stage(input_text=None):
@@ -152,6 +156,10 @@ def handle_chat_input():
     else:
         # Just acknowledge the message
         add_assistant_message(f"Thank you for your input. You can proceed to the next stage when ready.")
+        
+        
+     # Clear the chat input field after sending
+    st.session_state.chat_input = ""
     
     # Force a rerun to update the UI
     st.rerun()
@@ -296,12 +304,20 @@ def main():
         # Case input (only shown in initial stage)
         if st.session_state.current_stage == 'initial':
             st.subheader("Patient Case Details")
+            # Use the default case text if sample case button was clicked
+            default_value = st.session_state.default_case_text if st.session_state.sample_case_clicked else ""
+            
             st.text_area(
                 "Enter patient case information:",
+                value=default_value,
                 key="case_input",
                 height=200,
                 placeholder="Enter detailed patient case information here..."
             )
+            
+            # Reset the sample case clicked flag after rendering
+            if st.session_state.sample_case_clicked:
+                st.session_state.sample_case_clicked = False
             
             st.button(
                 "Submit Case",
@@ -403,14 +419,12 @@ def main():
         if st.session_state.current_stage == 'initial':
             st.info("Please enter patient case details in the left panel.")
             
+            def set_sample_case():
+                st.session_state.default_case_text = """Patient is a 45-year-old male presenting with severe abdominal pain in the right lower quadrant for the past 24 hours. Pain began as diffuse periumbilical discomfort and migrated to the right lower quadrant. Patient reports nausea, vomiting (twice), and loss of appetite. No diarrhea or constipation. Temperature is 38.2°C (100.8°F). Physical examination reveals rebound tenderness at McBurney's point and positive Rovsing's sign. WBC count is elevated at 14,500/μL with neutrophilia. Patient has no significant past medical history and no known allergies. No previous surgeries. Family history is non-contributory."""
+                st.session_state.sample_case_clicked = True
+            
             # Sample case button
-            if st.button("Use Sample Case"):
-                sample_case = """
-                Patient is a 45-year-old male presenting with severe abdominal pain in the right lower quadrant for the past 24 hours. Pain began as diffuse periumbilical discomfort and migrated to the right lower quadrant. Patient reports nausea, vomiting (twice), and loss of appetite. No diarrhea or constipation. Temperature is 38.2°C (100.8°F). Physical examination reveals rebound tenderness at McBurney's point and positive Rovsing's sign. WBC count is elevated at 14,500/μL with neutrophilia. Patient has no significant past medical history and no known allergies. No previous surgeries. Family history is non-contributory.
-                """
-                st.session_state.case_input = sample_case
-                handle_case_submission()
-                st.rerun()
+            st.button("Use Sample Case", on_click=set_sample_case)
         
         elif st.session_state.current_stage == 'extraction':
             st.subheader("Extracted Medical Factors")
@@ -518,7 +532,7 @@ def main():
                 """, unsafe_allow_html=True)
                 
                 # Display treatment comparison visualization
-                st.subheader("Treatment Comparison")
+                st.subheader("Treatment Comparison") 
                 
                 try:
                     fig = st.session_state.visualizer.create_treatment_comparison(treatment_plan)
