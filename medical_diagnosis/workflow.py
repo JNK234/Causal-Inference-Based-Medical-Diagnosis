@@ -35,13 +35,19 @@ class DiagnosisWorkflow:
             'treatment_planning',
             'patient_specific',
             'final_plan',
-            'visualization'
+            'visualization',
+            'pdf_generation'
         ]
         # Initialize visualizer
         from .visualizer import Visualizer
         self.visualizer = Visualizer()
+        # Initialize report generator
+        from .report_generator import ReportGenerator
+        self.report_generator = ReportGenerator()
         # Track the causal graph path
         self.causal_graph_path = None
+        # Track the PDF report path
+        self.pdf_report_path = None
         # Store all causal links to create graph only at the end
         self.all_causal_links = []
         logging.info("DiagnosisWorkflow initialized")
@@ -403,13 +409,40 @@ class DiagnosisWorkflow:
                 self.results[stage] = {
                     'graph_html_path': graph_html_path,
                     'embedded_graph_html': embedded_graph_html,
-                    'next_stage': 'complete',
+                    'next_stage': 'pdf_generation',
                     'note': 'Created comprehensive causal graph from all stages'
                 }
             except Exception as e:
                 logging.error(f"Error creating interactive causal graph: {str(e)}")
                 self.results[stage] = {
                     'error': f"Error creating visualization: {str(e)}",
+                    'next_stage': 'pdf_generation'
+                }
+            
+            return self.results[stage]
+            
+        elif stage == 'pdf_generation':
+            # Generate PDF report with all progress and results
+            try:
+                # Generate the PDF report using the report generator
+                pdf_path = self.report_generator.generate_pdf_report(self.results)
+                
+                # Store the PDF path for future reference
+                self.pdf_report_path = pdf_path
+                
+                # Create a download link for the PDF
+                pdf_download_link = self.report_generator.get_pdf_download_link(pdf_path)
+                
+                self.results[stage] = {
+                    'pdf_path': pdf_path,
+                    'pdf_download_link': pdf_download_link,
+                    'next_stage': 'complete',
+                    'note': 'Generated comprehensive PDF report with all diagnosis results'
+                }
+            except Exception as e:
+                logging.error(f"Error generating PDF report: {str(e)}")
+                self.results[stage] = {
+                    'error': f"Error generating PDF report: {str(e)}",
                     'next_stage': 'complete'
                 }
             
@@ -443,4 +476,17 @@ class DiagnosisWorkflow:
     def clear_results(self):
         """Clear all results."""
         self.results = {}
+        # Also clear the stored paths
+        self.causal_graph_path = None
+        self.pdf_report_path = None
+        self.all_causal_links = []
         logging.info("DiagnosisWorkflow results cleared")
+        
+    def get_pdf_report_path(self):
+        """
+        Get the path to the generated PDF report.
+        
+        Returns:
+            str: Path to the PDF report, or None if not generated
+        """
+        return self.pdf_report_path
