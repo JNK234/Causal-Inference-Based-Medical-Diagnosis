@@ -1,0 +1,192 @@
+/* Custom CSS for Medical Diagnosis Streamlit App */
+
+/* Main container styling */
+.main {
+    padding: 1rem;
+}
+
+/* Header styling */
+h1, h2, h3 {
+    color: #2C3E50;
+}
+
+h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid #3498DB;
+    padding-bottom: 0.5rem;
+}
+
+h2 {
+    font-size: 1.8rem;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    color: #3498DB;
+}
+
+h3 {
+    font-size: 1.4rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.8rem;
+}
+
+/* Card styling for analysis results */
+.css-1r6slb0 {  /* Streamlit expander class */
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-left: 5px solid #3498DB;
+}
+
+/* Styling for causal links */
+.causal-link {
+    font-weight: bold;
+}
+
+.causal-arrow {
+    color: #3498DB;
+    font-weight: bold;
+    margin: 0 0.5rem;
+}
+
+/* Treatment category styling */
+.treatment-causal {
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+.treatment-preventative {
+    color: #2196F3;
+    font-weight: bold;
+}
+
+.treatment-symptomatic {
+    color: #FFC107;
+    font-weight: bold;
+}
+
+/* Button styling */
+.stButton > button {
+    background-color: #3498DB;
+    color: white;
+    border: none;
+    border-radius: 0.3rem;
+    padding: 0.5rem 1rem;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.stButton > button:hover {
+    background-color: #2980B9;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Approval button */
+.approve-button > button {
+    background-color: #2ECC71;
+}
+
+.approve-button > button:hover {
+    background-color: #27AE60;
+}
+
+/* Chat container styling */
+.stContainer {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+/* Chat message styling */
+.chat-message {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.8rem;
+    max-width: 90%;
+    word-wrap: break-word;
+}
+
+.user-message {
+    background-color: #E8F4FD;
+    margin-left: auto;
+    border-top-right-radius: 0;
+    border-left: 3px solid #3498DB;
+}
+
+.assistant-message {
+    background-color: #F8F9FA;
+    margin-right: auto;
+    border-top-left-radius: 0;
+    border-left: 3px solid #2ECC71;
+}
+
+/* Progress bar styling */
+.stProgress > div > div {
+    background-color: #3498DB;
+}
+
+/* Highlight box for important information */
+.highlight-box {
+    background-color: #F8F9F9;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border-left: 5px solid #3498DB;
+    margin: 1rem 0;
+}
+
+/* Warning box */
+.warning-box {
+    background-color: #FDEBD0;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border-left: 5px solid #F39C12;
+    margin: 1rem 0;
+}
+
+/* Success box */
+.success-box {
+    background-color: #D5F5E3;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border-left: 5px solid #2ECC71;
+    margin: 1rem 0;
+}
+
+/* Legend styling */
+.legend-container {
+    background-color: #f9f9f9;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-right: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.legend-color {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+}
+
+/* Responsive layout adjustments */
+@media (max-width: 768px) {
+    .chat-message {
+        max-width: 95%;
+    }
+    
+    .stContainer {
+        max-height: 50vh;
+    }
+}
+
+/* Make causal graph container scrollable if needed */
+.causal-graph-container {
+    max-height: 500px;
+    overflow-y: auto;
+}
